@@ -10,13 +10,13 @@
 #define MESSAGE_TAG 1000
 #define WORK_TAG    1001
 //---------------------------------------------------------------------------
-#define SWARM_WEIGHT 2.5f
-#define SELF_WEIGHT 1.5f
-#define GENERATIONS 100 
+#define SWARM_WEIGHT 1.0f//2.5f
+#define SELF_WEIGHT 1.0f//1.5f
+#define GENERATIONS 100
 
-#define N_MIN 1
+#define N_MIN -20
 #define N_MAX 20
-#define M_MIN 1
+#define M_MIN -20
 #define M_MAX 20
 #define E_MIN 0.0f
 #define E_MAX 1.0f
@@ -33,9 +33,16 @@ typedef struct Position {
     float eb;
 } Position;
 
+typedef struct Velocity {
+    float n;
+    float m;
+    float e;
+    float eb;
+} Velocity;
+
 typedef struct Particle {
     struct Position pos;
-    struct Position velocity;
+    struct Velocity velocity;
 
     float fitness;
 } Particle;
@@ -44,7 +51,7 @@ typedef struct Particle {
 float fitness(Particle *f);
 float randFloat(float max, float min);
 int randInt(int min, int max);
-void printParticle(Particle p);
+void printParticle(Particle p, char *c, int id, int g);
 void copyParticle(Particle *s, Particle *d);
 //---------------------------------------------------------------------------
 // MPI Functions
@@ -68,11 +75,11 @@ main (int argc, char** argv)
     MPI_Init(&argc, &argv);
     MPI_Status status;
 
-    srand(time(NULL));
-
     MPI_Comm_rank(MPI_COMM_WORLD, &id);
     MPI_Comm_size(MPI_COMM_WORLD, &iSwarmSize);
     MPI_Get_processor_name(pcName, &iNameLen);
+
+    srand(time(NULL) + (id * 1984));
   
     int bRoot = (id == ROOT);
 
@@ -80,8 +87,8 @@ main (int argc, char** argv)
     particle.pos.m = randInt(M_MIN, M_MAX);
     particle.pos.e = randFloat(E_MAX, E_MIN);
     particle.pos.eb = randFloat(EB_MAX, EB_MIN);
-    particle.velocity.n = randInt(1, 2);
-    particle.velocity.m = randInt(1, 2);
+    particle.velocity.n = randFloat(1, 2);
+    particle.velocity.m = randFloat(1, 2);
     particle.velocity.e = randFloat(0.1, 0.7);
     particle.velocity.eb = randFloat(0.1, 0.7);
 
@@ -113,6 +120,7 @@ main (int argc, char** argv)
 
     fitness(&particle);
     copyParticle(&particle, &best);
+    //printParticle(particle, "current", id, -1);
 
     if (bRoot) {
         copyParticle(&particle, &pSwarmBest);
@@ -125,7 +133,7 @@ main (int argc, char** argv)
                 copyParticle(&tmpParticle, &pSwarmBest);
             }
         }
-        printParticle(pSwarmBest);
+        printParticle(pSwarmBest, "swarm best", id, -1);
     } else {
         sendParticle(&particle, ROOT);
     }  
@@ -148,12 +156,12 @@ main (int argc, char** argv)
                   SWARM_WEIGHT * (pSwarmBest.best_pos.x - particle.pos.x) * fSwarmRand;
 */
         particle.velocity.n = particle.velocity.n
-                            + (int)(SELF_WEIGHT * r1 * (best.pos.n - particle.pos.n)
-                                  + SWARM_WEIGHT * r2 * (pSwarmBest.pos.n - particle.pos.n));
+                            + SELF_WEIGHT * r1 * (best.pos.n - particle.pos.n)
+                            + SWARM_WEIGHT * r2 * (pSwarmBest.pos.n - particle.pos.n);
 
         particle.velocity.m = particle.velocity.m
-                            + (int)(SELF_WEIGHT * r1 * (best.pos.m - particle.pos.m)
-                                  + SWARM_WEIGHT * r2 * (pSwarmBest.pos.m - particle.pos.m));
+                            + SELF_WEIGHT * r1 * (best.pos.m - particle.pos.m)
+                            + SWARM_WEIGHT * r2 * (pSwarmBest.pos.m - particle.pos.m);
 
         particle.velocity.e = particle.velocity.e
                             + SELF_WEIGHT * r1 * (best.pos.e - particle.pos.e)
@@ -163,8 +171,8 @@ main (int argc, char** argv)
                              + SELF_WEIGHT * r1 * (best.pos.eb - particle.pos.eb)
                              + SWARM_WEIGHT * r2 * (pSwarmBest.pos.eb - particle.pos.eb);
 
-        particle.pos.n += particle.velocity.n;
-        particle.pos.m += particle.velocity.m;
+        particle.pos.n += (int)particle.velocity.n;
+        particle.pos.m += (int)particle.velocity.m;
         particle.pos.e += particle.velocity.e;
         particle.pos.eb += particle.velocity.eb;
 
@@ -178,8 +186,8 @@ main (int argc, char** argv)
         if(particle.pos.eb < EB_MIN) particle.pos.eb = EB_MIN;
 
         fitness(&particle);
-        //printf("%d ", id);
-        //printParticle(particle);
+        //printf("%d %d", id, iGeneration);
+        //printParticle(particle, "current", id, iGeneration);
 
         if(particle.fitness > best.fitness) {
             copyParticle(&particle, &best);
@@ -206,8 +214,8 @@ main (int argc, char** argv)
         bcastParticle(&pSwarmBest, ROOT);
 
         if (bRoot) {
-            printf("SwarmBest: ");
-            printParticle(pSwarmBest);
+            //printf("SwarmBest: ");
+            printParticle(pSwarmBest, "swarm best", id, iGeneration);
         }
 
         MPI_Barrier(MPI_COMM_WORLD);
@@ -256,8 +264,8 @@ void sendParticle(Particle *p, int destination)
     MPI_Send(&(p->pos.e), 1, MPI_FLOAT, destination, 103, MPI_COMM_WORLD);
     MPI_Send(&(p->pos.eb), 1, MPI_FLOAT, destination, 104, MPI_COMM_WORLD);
 
-    MPI_Send(&(p->velocity.n), 1, MPI_INT, destination, 105, MPI_COMM_WORLD);
-    MPI_Send(&(p->velocity.m), 1, MPI_INT, destination, 106, MPI_COMM_WORLD);
+    MPI_Send(&(p->velocity.n), 1, MPI_FLOAT, destination, 105, MPI_COMM_WORLD);
+    MPI_Send(&(p->velocity.m), 1, MPI_FLOAT, destination, 106, MPI_COMM_WORLD);
     MPI_Send(&(p->velocity.e), 1, MPI_FLOAT, destination, 107, MPI_COMM_WORLD);
     MPI_Send(&(p->velocity.eb), 1, MPI_FLOAT, destination, 108, MPI_COMM_WORLD);
 }
@@ -272,8 +280,8 @@ void recvParticle(Particle *p, int source)
     MPI_Recv(&(p->pos.e), 1, MPI_FLOAT, source, 103, MPI_COMM_WORLD, &status);
     MPI_Recv(&(p->pos.eb), 1, MPI_FLOAT, source, 104, MPI_COMM_WORLD, &status);
 
-    MPI_Recv(&(p->velocity.n), 1, MPI_INT, source, 105, MPI_COMM_WORLD, &status);
-    MPI_Recv(&(p->velocity.m), 1, MPI_INT, source, 106, MPI_COMM_WORLD, &status);
+    MPI_Recv(&(p->velocity.n), 1, MPI_FLOAT, source, 105, MPI_COMM_WORLD, &status);
+    MPI_Recv(&(p->velocity.m), 1, MPI_FLOAT, source, 106, MPI_COMM_WORLD, &status);
     MPI_Recv(&(p->velocity.e), 1, MPI_FLOAT, source, 107, MPI_COMM_WORLD, &status);
     MPI_Recv(&(p->velocity.eb), 1, MPI_FLOAT, source, 108, MPI_COMM_WORLD, &status);
 }
@@ -287,16 +295,16 @@ void bcastParticle(Particle *p, int source)
     MPI_Bcast(&(p->pos.e), 1, MPI_FLOAT, source, MPI_COMM_WORLD);
     MPI_Bcast(&(p->pos.eb), 1, MPI_FLOAT, source, MPI_COMM_WORLD);
 
-    MPI_Bcast(&(p->velocity.n), 1, MPI_INT, source, MPI_COMM_WORLD);
-    MPI_Bcast(&(p->velocity.m), 1, MPI_INT, source, MPI_COMM_WORLD);
+    MPI_Bcast(&(p->velocity.n), 1, MPI_FLOAT, source, MPI_COMM_WORLD);
+    MPI_Bcast(&(p->velocity.m), 1, MPI_FLOAT, source, MPI_COMM_WORLD);
     MPI_Bcast(&(p->velocity.e), 1, MPI_FLOAT, source, MPI_COMM_WORLD);
     MPI_Bcast(&(p->velocity.eb), 1, MPI_FLOAT, source, MPI_COMM_WORLD);
 }
 
 //-------------------------------------------------
-void printParticle(struct Particle p)
+void printParticle(struct Particle p, char *c, int id, int g)
 {
-    printf("(%d %d %.3f %.3f) (%d %d %.3f %.3f) :: %.3f\n", p.pos.n, p.pos.m, p.pos.e, p.pos.eb, p.velocity.n, p.velocity.m, p.velocity.e, p.velocity.eb, p.fitness);
+    printf("[%s %02d %03d](%d %d %.3f %.3f) (%.3f %.3f %.3f %.3f) :: %.3f\n", c, id, g, p.pos.n, p.pos.m, p.pos.e, p.pos.eb, p.velocity.n, p.velocity.m, p.velocity.e, p.velocity.eb, p.fitness);
 }
 
 void copyParticle(Particle *s, Particle *d) {
