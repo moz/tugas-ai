@@ -34,17 +34,18 @@ typedef struct Position {
 } Position;
 
 typedef struct Particle {
-    struct Position current_pos;
+    struct Position pos;
     struct Position velocity;
 
-    float current_fitness;
+    float fitness;
 } Particle;
 //---------------------------------------------------------------------------
 // Algorithm Functions
-float fitness(Particle *f, int bSetBest);
+float fitness(Particle *f);
 float randFloat(float max, float min);
 int randInt(int min, int max);
-void  printParticle(Particle p);
+void printParticle(Particle p);
+void copyParticle(Particle *s, Particle *d);
 //---------------------------------------------------------------------------
 // MPI Functions
 void getStatus(MPI_Status status, char* pcStatus);
@@ -75,17 +76,18 @@ main (int argc, char** argv)
   
     int bRoot = (id == ROOT);
 
-    particle.current_pos.n = randInt(N_MIN, N_MAX);
-    particle.current_pos.m = randInt(M_MIN, M_MAX);
-    particle.current_pos.e = randFloat(E_MAX, E_MIN);
-    particle.current_pos.eb = randFloat(EB_MAX, EB_MIN);
-    particle.velocity.n = randInt(-1, 1);
-    particle.velocity.m = randInt(-1, 1);
-    particle.velocity.e = randFloat(0.0, 0.5);
-    particle.velocity.eb = randFloat(0.0, 0.5);
- 
-    fitness(&particle, 1);
-  
+    particle.pos.n = randInt(N_MIN, N_MAX);
+    particle.pos.m = randInt(M_MIN, M_MAX);
+    particle.pos.e = randFloat(E_MAX, E_MIN);
+    particle.pos.eb = randFloat(EB_MAX, EB_MIN);
+    particle.velocity.n = randInt(1, 2);
+    particle.velocity.m = randInt(1, 2);
+    particle.velocity.e = randFloat(0.1, 0.7);
+    particle.velocity.eb = randFloat(0.1, 0.7);
+
+    if(particle.velocity.n == 0) particle.velocity.n = 1;
+    if(particle.velocity.m == 0) particle.velocity.m = 1;
+
     if (!bRoot) {
         sprintf(pcMessage, "%i, %s", id, pcName);
         MPI_Send(pcMessage, strlen(pcMessage)+1, MPI_CHAR, ROOT, MESSAGE_TAG, MPI_COMM_WORLD);
@@ -94,7 +96,8 @@ main (int argc, char** argv)
         printf("*********************************************************\n");
         printf("Root Node: %s\n", pcName);
         printf("Awaiting worker node responses...\n");
-        for (int iSource = 1; iSource < iSwarmSize; iSource++) {
+        int iSource;
+        for (iSource = 1; iSource < iSwarmSize; iSource++) {
             MPI_Recv(pcMessage, 1024, MPI_CHAR, iSource, MESSAGE_TAG, MPI_COMM_WORLD, &status);
             getStatus(status, pcStatus);
             printf("AgentNode: %s\t| Status: %s\n", pcMessage, pcStatus);
@@ -106,98 +109,117 @@ main (int argc, char** argv)
 
     //int iSwarmBest = 0;
     Particle pSwarmBest;
-  
+    Particle best;
+
+    fitness(&particle);
+    copyParticle(&particle, &best);
+
     if (bRoot) {
-        pSwarmBest.current_fitness = particle.current_fitness;
-        pSwarmBest.best_pos.x   = particle.current_pos.x;
-        pSwarmBest.best_pos.y   = particle.current_pos.y;
+        copyParticle(&particle, &pSwarmBest);
 
         Particle tmpParticle;
-        for (int iParticle = 1; iParticle < iSwarmSize; iParticle++) {
-            MPI_Recv(&tmpParticle.current_fitness, 1, MPI_FLOAT, iParticle, MESSAGE_TAG, MPI_COMM_WORLD, &status);
-            MPI_Recv(&tmpParticle.current_pos.x,   1, MPI_FLOAT, iParticle, MESSAGE_TAG, MPI_COMM_WORLD, &status);
-            MPI_Recv(&tmpParticle.current_pos.y,   1, MPI_FLOAT, iParticle, MESSAGE_TAG, MPI_COMM_WORLD, &status);
-            if (tmpParticle.current_fitness > pSwarmBest.best_fitness) {
-                //iSwarmBest              = iParticle;
-                pSwarmBest.best_fitness = tmpParticle.current_fitness;
-                pSwarmBest.best_pos.x   = tmpParticle.current_pos.x;
-                pSwarmBest.best_pos.y   = tmpParticle.current_pos.y;
+        int iParticle;
+        for (iParticle = 1; iParticle < iSwarmSize; iParticle++) {
+            recvParticle(&tmpParticle, iParticle);
+            if (tmpParticle.fitness > pSwarmBest.fitness) {
+                copyParticle(&tmpParticle, &pSwarmBest);
             }
         }
         printParticle(pSwarmBest);
     } else {
-        MPI_Send(&particle.current_fitness, 1, MPI_FLOAT, ROOT, MESSAGE_TAG, MPI_COMM_WORLD);
-        MPI_Send(&particle.current_pos.x,   1, MPI_FLOAT, ROOT, MESSAGE_TAG, MPI_COMM_WORLD);
-        MPI_Send(&particle.current_pos.y,   1, MPI_FLOAT, ROOT, MESSAGE_TAG, MPI_COMM_WORLD);
+        sendParticle(&particle, ROOT);
     }  
 
-    MPI_Bcast(&pSwarmBest.best_fitness, 1, MPI_FLOAT, ROOT, MPI_COMM_WORLD);
-    MPI_Bcast(&pSwarmBest.best_pos.x,   1, MPI_FLOAT, ROOT, MPI_COMM_WORLD);
-    MPI_Bcast(&pSwarmBest.best_pos.y,   1, MPI_FLOAT, ROOT, MPI_COMM_WORLD);
+    bcastParticle(&pSwarmBest, ROOT);
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-  for (int iGeneration = 0; iGeneration < GENERATIONS; iGeneration++) {
-    if (bRoot) {
-      printf("Generation-> %i\n", iGeneration);
-    }
-   
-    float fSwarmRand = randFloat(0, 1); 
-    float fSelfRand  = randFloat(0, 1);
-    float fNewVel;
-    fNewVel = particle.velocity.x + 
-              SELF_WEIGHT  * (particle.best_pos.x - particle.current_pos.x)  * fSelfRand + 
-              SWARM_WEIGHT * (pSwarmBest.best_pos.x - particle.current_pos.x) * fSwarmRand;
-
-    if (fNewVel > VEL_MAX) fNewVel = VEL_MAX;
-    if (fNewVel < VEL_MIN) fNewVel = VEL_MIN;
-    particle.current_pos.x += fNewVel;
-    particle.velocity.x = fNewVel;
-
-    if (particle.current_pos.x > XMAX) particle.current_pos.x = XMAX;
-    if (particle.current_pos.x < XMIN) particle.current_pos.x = XMIN;
-    if (particle.current_pos.y > YMAX) particle.current_pos.y = YMAX;
-    if (particle.current_pos.y < YMIN) particle.current_pos.y = YMIN;
-
-    fitness(particle);
-    //printParticle(particle);
-
-    if (bRoot) {
-      Particle tmpParticle;
-      for (int iParticle = 1; iParticle < iSwarmSize; iParticle++) {
-        MPI_Recv(&tmpParticle.current_fitness, 1, MPI_FLOAT, iParticle, MESSAGE_TAG, MPI_COMM_WORLD, &status);
-        MPI_Recv(&tmpParticle.current_pos.x,   1, MPI_FLOAT, iParticle, MESSAGE_TAG, MPI_COMM_WORLD, &status);
-        MPI_Recv(&tmpParticle.current_pos.y,   1, MPI_FLOAT, iParticle, MESSAGE_TAG, MPI_COMM_WORLD, &status);
-      
-        if (tmpParticle.current_fitness > pSwarmBest.best_fitness) {
-          //iSwarmBest              = iParticle;
-          pSwarmBest.best_fitness = tmpParticle.current_fitness; 
-          pSwarmBest.best_pos.x   = tmpParticle.current_pos.x;
-          pSwarmBest.best_pos.y   = tmpParticle.current_pos.y;
+    int iGeneration;
+    for (iGeneration = 0; iGeneration < GENERATIONS; iGeneration++) {
+        if (bRoot) {
+            printf("Generation-> %i\n", iGeneration);
         }
-      }
-    } else {
-      MPI_Send(&particle.current_fitness, 1, MPI_FLOAT, ROOT, MESSAGE_TAG, MPI_COMM_WORLD);
-      MPI_Send(&particle.current_pos.x,   1, MPI_FLOAT, ROOT, MESSAGE_TAG, MPI_COMM_WORLD);
-      MPI_Send(&particle.current_pos.y,   1, MPI_FLOAT, ROOT, MESSAGE_TAG, MPI_COMM_WORLD);
-    } 
-    
-    MPI_Bcast(&pSwarmBest.best_fitness, 1, MPI_FLOAT, ROOT, MPI_COMM_WORLD);
-    MPI_Bcast(&pSwarmBest.best_pos.x,   1, MPI_FLOAT, ROOT, MPI_COMM_WORLD);
-    MPI_Bcast(&pSwarmBest.best_pos.y,   1, MPI_FLOAT, ROOT, MPI_COMM_WORLD);
-    if (bRoot) {
-      printf("SwarmBest: ");
-      printParticle(pSwarmBest);
-    }
-  }
+   
+        float r1 = randFloat(0, 1); 
+        float r2  = randFloat(0, 1);
+/*
+        fNewVel = particle.velocity.x + 
+                  SELF_WEIGHT  * (particle.best_pos.x - particle.pos.x)  * fSelfRand + 
+                  SWARM_WEIGHT * (pSwarmBest.best_pos.x - particle.pos.x) * fSwarmRand;
+*/
+        particle.velocity.n = particle.velocity.n
+                            + (int)(SELF_WEIGHT * r1 * (best.pos.n - particle.pos.n)
+                                  + SWARM_WEIGHT * r2 * (pSwarmBest.pos.n - particle.pos.n));
 
-  if (bRoot) {
-    printf("And the winner is: (%f, %f) -> %f\n",  pSwarmBest.best_pos.x, pSwarmBest.best_pos.y, pSwarmBest.best_fitness);
-  }
+        particle.velocity.m = particle.velocity.m
+                            + (int)(SELF_WEIGHT * r1 * (best.pos.m - particle.pos.m)
+                                  + SWARM_WEIGHT * r2 * (pSwarmBest.pos.m - particle.pos.m));
+
+        particle.velocity.e = particle.velocity.e
+                            + SELF_WEIGHT * r1 * (best.pos.e - particle.pos.e)
+                            + SWARM_WEIGHT * r2 * (pSwarmBest.pos.e - particle.pos.e);
+
+        particle.velocity.eb = particle.velocity.eb
+                             + SELF_WEIGHT * r1 * (best.pos.eb - particle.pos.eb)
+                             + SWARM_WEIGHT * r2 * (pSwarmBest.pos.eb - particle.pos.eb);
+
+        particle.pos.n += particle.velocity.n;
+        particle.pos.m += particle.velocity.m;
+        particle.pos.e += particle.velocity.e;
+        particle.pos.eb += particle.velocity.eb;
+
+        if(particle.pos.n > N_MAX) particle.pos.n = N_MAX;
+        if(particle.pos.n < N_MIN) particle.pos.n = N_MIN;
+        if(particle.pos.m > M_MAX) particle.pos.m = M_MAX;
+        if(particle.pos.m < M_MIN) particle.pos.m = M_MIN;
+        if(particle.pos.e > E_MAX) particle.pos.e = E_MAX;
+        if(particle.pos.e < E_MIN) particle.pos.e = E_MIN;
+        if(particle.pos.eb > EB_MAX) particle.pos.eb = EB_MAX;
+        if(particle.pos.eb < EB_MIN) particle.pos.eb = EB_MIN;
+
+        fitness(&particle);
+        //printf("%d ", id);
+        //printParticle(particle);
+
+        if(particle.fitness > best.fitness) {
+            copyParticle(&particle, &best);
+        }
+
+        if (bRoot) {
+            if(particle.fitness > pSwarmBest.fitness) {
+                copyParticle(&particle, &pSwarmBest);
+            }
+
+            Particle tmpParticle;
+            int iParticle;
+            for (iParticle = 1; iParticle < iSwarmSize; iParticle++) {
+                recvParticle(&tmpParticle, iParticle);
+
+                if (tmpParticle.fitness > pSwarmBest.fitness) {
+                    copyParticle(&tmpParticle, &pSwarmBest);
+                }
+            }
+        } else {
+            sendParticle(&particle, ROOT);
+        }
+
+        bcastParticle(&pSwarmBest, ROOT);
+
+        if (bRoot) {
+            printf("SwarmBest: ");
+            printParticle(pSwarmBest);
+        }
+
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+
+    if (bRoot) {
+        printf("And the winner is: (%d, %d, %.3f, %.3f) -> %.3f\n",  pSwarmBest.pos.n, pSwarmBest.pos.m, pSwarmBest.pos.e, pSwarmBest.pos.eb, pSwarmBest.fitness);
+    }
  
-  MPI_Finalize();
+    MPI_Finalize();
   
-  return 0; 
+    return 0;
 }
 //-------------------------------------------------
 float randFloat(float a, float b)
@@ -209,50 +231,46 @@ float randFloat(float a, float b)
 }
 
 int randInt(int min, int max) {
-    return (rand() % (max+1))
+    return (rand() % (max-min)) + min;
 }
 //-------------------------------------------------
-float fitness(struct Particle& f, bool bSetBest)
+float fitness(Particle *f)
 {
-    float x = f.current_pos.x;
-    float y = f.current_pos.y;
+    f->fitness = 0;
+    f->fitness = -1*pow(f->pos.e, 2);
+    f->fitness += -1*pow(f->pos.eb, 2);
+    f->fitness += -1*pow(f->pos.n, 2);
+    f->fitness += -1*pow(f->pos.m, 2);
+    //f.fitness =  -1 * pow(x - 0.5, 3) + x;
+    //f.fitness =  -1 * pow(x - 0.5, 3) + x - pow(y, 2) - (x * y);
 
-    f.current_fitness = -1*pow(x, 2);
-    //f.current_fitness =  -1 * pow(x - 0.5, 3) + x;
-    //f.current_fitness =  -1 * pow(x - 0.5, 3) + x - pow(y, 2) - (x * y);
-
-    if (f.current_fitness > f.best_fitness || bSetBest == true) {
-      f.best_fitness = f.current_fitness;
-      f.best_pos.x   = x;
-      f.best_pos.y   = y;
-    }
-    return f.current_fitness;
+    return f->fitness;
 }
 //-------------------------------------------------
 void sendParticle(Particle *p, int destination)
 {
-    MPI_Send(&(p->current_fitnest), 1, MPI_FLOAT, destination, 100, MPI_COMM_WORLD);
+    MPI_Send(&(p->fitness), 1, MPI_FLOAT, destination, 100, MPI_COMM_WORLD);
 
-    MPI_Send(&(p->current_pos.n), 1, MPI_INT, destination, 101, MPI_COMM_WORLD);
-    MPI_Send(&(p->current_pos.m), 1, MPI_INT, destination, 102, MPI_COMM_WORLD);
-    MPI_Send(&(p->current_pos.e), 1, MPI_FLOAT, destination, 103, MPI_COMM_WORLD);
-    MPI_Send(&(p->current_pos.eb), 1, MPI_FLOAT, destination, 104, MPI_COMM_WORLD);
+    MPI_Send(&(p->pos.n), 1, MPI_INT, destination, 101, MPI_COMM_WORLD);
+    MPI_Send(&(p->pos.m), 1, MPI_INT, destination, 102, MPI_COMM_WORLD);
+    MPI_Send(&(p->pos.e), 1, MPI_FLOAT, destination, 103, MPI_COMM_WORLD);
+    MPI_Send(&(p->pos.eb), 1, MPI_FLOAT, destination, 104, MPI_COMM_WORLD);
 
     MPI_Send(&(p->velocity.n), 1, MPI_INT, destination, 105, MPI_COMM_WORLD);
     MPI_Send(&(p->velocity.m), 1, MPI_INT, destination, 106, MPI_COMM_WORLD);
     MPI_Send(&(p->velocity.e), 1, MPI_FLOAT, destination, 107, MPI_COMM_WORLD);
-    MPI_Send(&(p->velocity,eb), 1, MPI_FLOAT, destination, 108, MPI_COMM_WORLD);
+    MPI_Send(&(p->velocity.eb), 1, MPI_FLOAT, destination, 108, MPI_COMM_WORLD);
 }
 
 void recvParticle(Particle *p, int source)
 {
     MPI_Status status;
-    MPI_Recv(&(p->current_fitnest), 1, MPI_FLOAT, source, 100,  MPI_COMM_WORLD, &status);
+    MPI_Recv(&(p->fitness), 1, MPI_FLOAT, source, 100,  MPI_COMM_WORLD, &status);
 
-    MPI_Recv(&(p->current_pos.n), 1, MPI_INT, source, 101, MPI_COMM_WORLD, &status);
-    MPI_Recv(&(p->current_pos.m), 1, MPI_INT, source, 102, MPI_COMM_WORLD, &status);
-    MPI_Recv(&(p->current_pos.e), 1, MPI_FLOAT, source, 103, MPI_COMM_WORLD, &status);
-    MPI_Recv(&(p->current_post.eb), 1, MPI_FLOAT, source, 104, MPI_COMM_WORLD, &status);
+    MPI_Recv(&(p->pos.n), 1, MPI_INT, source, 101, MPI_COMM_WORLD, &status);
+    MPI_Recv(&(p->pos.m), 1, MPI_INT, source, 102, MPI_COMM_WORLD, &status);
+    MPI_Recv(&(p->pos.e), 1, MPI_FLOAT, source, 103, MPI_COMM_WORLD, &status);
+    MPI_Recv(&(p->pos.eb), 1, MPI_FLOAT, source, 104, MPI_COMM_WORLD, &status);
 
     MPI_Recv(&(p->velocity.n), 1, MPI_INT, source, 105, MPI_COMM_WORLD, &status);
     MPI_Recv(&(p->velocity.m), 1, MPI_INT, source, 106, MPI_COMM_WORLD, &status);
@@ -262,13 +280,37 @@ void recvParticle(Particle *p, int source)
 
 void bcastParticle(Particle *p, int source)
 {
-    
+    MPI_Bcast(&(p->fitness), 1, MPI_FLOAT, source, MPI_COMM_WORLD);
+
+    MPI_Bcast(&(p->pos.n), 1, MPI_INT, source, MPI_COMM_WORLD);
+    MPI_Bcast(&(p->pos.m), 1, MPI_INT, source, MPI_COMM_WORLD);
+    MPI_Bcast(&(p->pos.e), 1, MPI_FLOAT, source, MPI_COMM_WORLD);
+    MPI_Bcast(&(p->pos.eb), 1, MPI_FLOAT, source, MPI_COMM_WORLD);
+
+    MPI_Bcast(&(p->velocity.n), 1, MPI_INT, source, MPI_COMM_WORLD);
+    MPI_Bcast(&(p->velocity.m), 1, MPI_INT, source, MPI_COMM_WORLD);
+    MPI_Bcast(&(p->velocity.e), 1, MPI_FLOAT, source, MPI_COMM_WORLD);
+    MPI_Bcast(&(p->velocity.eb), 1, MPI_FLOAT, source, MPI_COMM_WORLD);
 }
 
 //-------------------------------------------------
 void printParticle(struct Particle p)
 {
-  printf("(%f @ %f) -> %f  best: (%f) -> %f\n", p.current_pos.x, p.velocity.x, p.current_fitness, p.best_pos.x, p.best_fitness);
+    printf("(%d %d %.3f %.3f) (%d %d %.3f %.3f) :: %.3f\n", p.pos.n, p.pos.m, p.pos.e, p.pos.eb, p.velocity.n, p.velocity.m, p.velocity.e, p.velocity.eb, p.fitness);
+}
+
+void copyParticle(Particle *s, Particle *d) {
+    d->fitness = s->fitness;
+
+    d->pos.n = s->pos.n;
+    d->pos.m = s->pos.m;
+    d->pos.e = s->pos.e;
+    d->pos.eb = s->pos.eb;
+
+    d->velocity.n = s->velocity.n;
+    d->velocity.m = s->velocity.m;
+    d->velocity.e = s->velocity.e;
+    d->velocity.eb = s->velocity.eb;
 }
 //-------------------------------------------------
 void getStatus(MPI_Status status, char* pcStatus)
