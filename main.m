@@ -44,19 +44,17 @@ batchdata = zeros(1, size(vi, 2), size(vi,1)); % the data that is divided into b
 restart = 1;  % set to 1 if learning starts from beginning 
 
 for i=1:size(batchdata, 3)
-    data = vi(i:);
+    data = vi(i,:);
     batchdata(1, :, i) = data';
 end
 
-%{
 fprintf(1, 'RBM1 %d-%d\n', num_input,numhid);
 rbm
-w1=vishid;
+vishid1=vishid;
 
 numhid =1;
 restart = 1;
 fprintf(1, 'RBM2 %d-%d\n', size(batchdata, 2), numhid);
 batchdata=batchposhidprobs;
 rbm
-w2=vishid;
-%}
+vishid2=vishid;

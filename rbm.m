@@ -51,10 +51,10 @@ if restart ==1,
 end
 
 for epoch = epoch:maxepoch,
-  fprintf(1,'epoch %d\r',epoch); 
+  fprintf(1,'epoch %d ',epoch); 
   errsum=0;
   for batch = 1:numbatches,
-    fprintf(1,'epoch %d batch %d\r',epoch,batch); 
+    %fprintf(1,'epoch %d batch %d\r',epoch,batch); 
 
 %%%%%%%%% START POSITIVE PHASE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     data = batchdata(:,:,batch);
@@ -97,5 +97,5 @@ for epoch = epoch:maxepoch,
 %%%%%%%%%%%%%%%% END OF UPDATES %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 
   end
-  fprintf(1, 'epoch %4i error %6.1f  \n', epoch, errsum); 
+  fprintf(1, ' error %6.1f  \n', errsum); 
 end;
