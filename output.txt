@@ -1,0 +1,62 @@
+Initializing Nodes
+*********************************************************
+Root Node: nashira
+Awaiting worker node responses...
+AgentNode: 1, nashira	| Status: Unknown Error
+AgentNode: 2, nashira	| Status: Unknown Error
+AgentNode: 3, nashira	| Status: Unknown Error
+AgentNode: 4, nashira	| Status: Unknown Error
+AgentNode: 5, nashira	| Status: Unknown Error
+AgentNode: 6, nashira	| Status: Unknown Error
+AgentNode: 7, nashira	| Status: Unknown Error
+Node initialization complete...
+8 Nodes Registered for work...
+*********************************************************
+[swarm best 00 -01](5 18 0.783 0.542) (1.761 1.837 0.279 0.641) :: -0.001
+Generation-> 0
+[swarm best 00 000](11 26 0.764 0.326) (0.190 -0.266 0.255 0.263) :: -0.001
+Generation-> 1
+[swarm best 00 001](11 26 0.764 0.326) (0.190 -0.266 0.255 0.263) :: -0.001
+Generation-> 2
+[swarm best 00 002](11 26 0.764 0.326) (0.190 -0.266 0.255 0.263) :: -0.001
+Generation-> 3
+[swarm best 00 003](11 26 0.764 0.326) (0.190 -0.266 0.255 0.263) :: -0.001
+Generation-> 4
+[swarm best 00 004](11 26 0.764 0.326) (0.190 -0.266 0.255 0.263) :: -0.001
+Generation-> 5
+[swarm best 00 005](11 26 0.764 0.326) (0.190 -0.266 0.255 0.263) :: -0.001
+Generation-> 6
+[swarm best 00 006](11 26 0.764 0.326) (0.190 -0.266 0.255 0.263) :: -0.001
+Generation-> 7
+[swarm best 00 007](3 24 0.969 0.740) (-1.120 7.819 0.126 -0.260) :: -0.001
+Generation-> 8
+[swarm best 00 008](2 30 1.000 0.481) (-1.120 7.819 0.126 -0.260) :: -0.000
+Generation-> 9
+[swarm best 00 009](2 30 1.000 0.481) (-1.120 7.819 0.126 -0.260) :: -0.000
+Generation-> 10
+[swarm best 00 010](2 30 1.000 0.481) (-1.120 7.819 0.126 -0.260) :: -0.000
+Generation-> 11
+[swarm best 00 011](2 30 1.000 0.481) (-1.120 7.819 0.126 -0.260) :: -0.000
+Generation-> 12
+[swarm best 00 012](2 30 1.000 0.481) (-1.120 7.819 0.126 -0.260) :: -0.000
+Generation-> 13
+[swarm best 00 013](1 30 1.000 0.545) (-6.429 0.165 0.346 -0.071) :: -0.000
+Generation-> 14
+[swarm best 00 014](1 30 1.000 0.545) (-6.429 0.165 0.346 -0.071) :: -0.000
+Generation-> 15
+[swarm best 00 015](1 30 1.000 0.545) (-6.429 0.165 0.346 -0.071) :: -0.000
+Generation-> 16
+[swarm best 00 016](1 30 1.000 0.545) (-6.429 0.165 0.346 -0.071) :: -0.000
+Generation-> 17
+[swarm best 00 017](1 30 1.000 0.545) (-6.429 0.165 0.346 -0.071) :: -0.000
+Generation-> 18
+[swarm best 00 018](1 30 1.000 0.465) (-5.857 2.677 0.051 0.024) :: -0.000
+Generation-> 19
+[swarm best 00 019](1 30 1.000 0.465) (-5.857 2.677 0.051 0.024) :: -0.000
+Generation-> 20
+[swarm best 00 020](1 30 1.000 0.465) (-5.857 2.677 0.051 0.024) :: -0.000
+Generation-> 21
+[swarm best 00 021](1 30 1.000 0.465) (-5.857 2.677 0.051 0.024) :: -0.000
+Generation-> 22
+[mpiexec@nashira] Sending Ctrl-C to processes as requested
+[mpiexec@nashira] Press Ctrl-C again to force abort
