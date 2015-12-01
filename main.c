@@ -14,10 +14,10 @@
 #define SELF_WEIGHT 1.0f//1.5f
 #define GENERATIONS 100
 
-#define N_MIN -20
-#define N_MAX 20
-#define M_MIN -20
-#define M_MAX 20
+#define N_MIN 1
+#define N_MAX 30
+#define M_MIN 1
+#define M_MAX 30
 #define E_MIN 0.0f
 #define E_MAX 1.0f
 #define EB_MIN 0.0f
@@ -187,7 +187,7 @@ main (int argc, char** argv)
 
         fitness(&particle);
         //printf("%d %d", id, iGeneration);
-        //printParticle(particle, "current", id, iGeneration);
+        printParticle(particle, "curr", id, iGeneration);
 
         if(particle.fitness > best.fitness) {
             copyParticle(&particle, &best);
@@ -222,7 +222,7 @@ main (int argc, char** argv)
     }
 
     if (bRoot) {
-        printf("And the winner is: (%d, %d, %.3f, %.3f) -> %.3f\n",  pSwarmBest.pos.n, pSwarmBest.pos.m, pSwarmBest.pos.e, pSwarmBest.pos.eb, pSwarmBest.fitness);
+        printf("And the winner is: (%d, %d, %.3f, %.3f) -> %.10f\n",  pSwarmBest.pos.n, pSwarmBest.pos.m, pSwarmBest.pos.e, pSwarmBest.pos.eb, pSwarmBest.fitness);
     }
  
     MPI_Finalize();
@@ -244,15 +244,20 @@ int randInt(int min, int max) {
 //-------------------------------------------------
 float fitness(Particle *f)
 {
-    f->fitness = 0;
-    f->fitness = -1*pow(f->pos.e, 2);
-    f->fitness += -1*pow(f->pos.eb, 2);
-    f->fitness += -1*pow(f->pos.n, 2);
-    f->fitness += -1*pow(f->pos.m, 2);
-    //f.fitness =  -1 * pow(x - 0.5, 3) + x;
-    //f.fitness =  -1 * pow(x - 0.5, 3) + x - pow(y, 2) - (x * y);
+    float fitness;
+    int ret;
 
-    return f->fitness;
+    FILE *p;
+    char command[1024];
+
+    sprintf(command, "octave -q main_rewrite.m %d %d %f %f", f->pos.n, f->pos.m, f->pos.e, f->pos.eb);
+    p = popen(command, "r");
+    ret = fscanf(p, "%f", &fitness);
+    //printf("%f", fitness);
+    pclose(p);
+
+    f->fitness = fitness;
+    return fitness;
 }
 //-------------------------------------------------
 void sendParticle(Particle *p, int destination)
@@ -304,7 +309,7 @@ void bcastParticle(Particle *p, int source)
 //-------------------------------------------------
 void printParticle(struct Particle p, char *c, int id, int g)
 {
-    printf("[%s %02d %03d](%d %d %.3f %.3f) (%.3f %.3f %.3f %.3f) :: %.3f\n", c, id, g, p.pos.n, p.pos.m, p.pos.e, p.pos.eb, p.velocity.n, p.velocity.m, p.velocity.e, p.velocity.eb, p.fitness);
+    printf("[%s %02d %03d](%d %d %.3f %.3f) (%.3f %.3f %.3f %.3f) :: %.10f\n", c, id, g, p.pos.n, p.pos.m, p.pos.e, p.pos.eb, p.velocity.n, p.velocity.m, p.velocity.e, p.velocity.eb, p.fitness);
 }
 
 void copyParticle(Particle *s, Particle *d) {
