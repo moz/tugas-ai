@@ -12,7 +12,9 @@
 //---------------------------------------------------------------------------
 #define SWARM_WEIGHT 1.0f//2.5f
 #define SELF_WEIGHT 1.0f//1.5f
-#define GENERATIONS 100
+#define PSO_W 0.95
+#define PSO_K 0.9
+#define GENERATIONS 30
 
 #define N_MIN 1
 #define N_MAX 30
@@ -120,7 +122,7 @@ main (int argc, char** argv)
 
     fitness(&particle);
     copyParticle(&particle, &best);
-    //printParticle(particle, "current", id, -1);
+    printParticle(particle, "curr", id, -1);
 
     if (bRoot) {
         copyParticle(&particle, &pSwarmBest);
@@ -155,35 +157,71 @@ main (int argc, char** argv)
                   SELF_WEIGHT  * (particle.best_pos.x - particle.pos.x)  * fSelfRand + 
                   SWARM_WEIGHT * (pSwarmBest.best_pos.x - particle.pos.x) * fSwarmRand;
 */
-        particle.velocity.n = particle.velocity.n
+        particle.velocity.n = particle.velocity.n * PSO_W
                             + SELF_WEIGHT * r1 * (best.pos.n - particle.pos.n)
                             + SWARM_WEIGHT * r2 * (pSwarmBest.pos.n - particle.pos.n);
 
-        particle.velocity.m = particle.velocity.m
+        particle.velocity.m = particle.velocity.m * PSO_W
                             + SELF_WEIGHT * r1 * (best.pos.m - particle.pos.m)
                             + SWARM_WEIGHT * r2 * (pSwarmBest.pos.m - particle.pos.m);
 
-        particle.velocity.e = particle.velocity.e
+        particle.velocity.e = particle.velocity.e * PSO_W
                             + SELF_WEIGHT * r1 * (best.pos.e - particle.pos.e)
                             + SWARM_WEIGHT * r2 * (pSwarmBest.pos.e - particle.pos.e);
 
-        particle.velocity.eb = particle.velocity.eb
+        particle.velocity.eb = particle.velocity.eb * PSO_W
                              + SELF_WEIGHT * r1 * (best.pos.eb - particle.pos.eb)
                              + SWARM_WEIGHT * r2 * (pSwarmBest.pos.eb - particle.pos.eb);
 
-        particle.pos.n += (int)particle.velocity.n;
-        particle.pos.m += (int)particle.velocity.m;
+        particle.velocity.n = particle.velocity.n * PSO_K;
+        particle.velocity.m = particle.velocity.m * PSO_K;
+        particle.velocity.e = particle.velocity.e * PSO_K;
+        particle.velocity.eb = particle.velocity.eb * PSO_K;
+
+        particle.pos.n += (int)ceil(particle.velocity.n);
+        particle.pos.m += (int)ceil(particle.velocity.m);
         particle.pos.e += particle.velocity.e;
         particle.pos.eb += particle.velocity.eb;
 
-        if(particle.pos.n > N_MAX) particle.pos.n = N_MAX;
-        if(particle.pos.n < N_MIN) particle.pos.n = N_MIN;
-        if(particle.pos.m > M_MAX) particle.pos.m = M_MAX;
-        if(particle.pos.m < M_MIN) particle.pos.m = M_MIN;
-        if(particle.pos.e > E_MAX) particle.pos.e = E_MAX;
-        if(particle.pos.e < E_MIN) particle.pos.e = E_MIN;
-        if(particle.pos.eb > EB_MAX) particle.pos.eb = EB_MAX;
-        if(particle.pos.eb < EB_MIN) particle.pos.eb = EB_MIN;
+        if(particle.pos.n > N_MAX) {
+            particle.pos.n = N_MAX;
+            particle.velocity.n = -0.5;
+        }
+
+        if(particle.pos.n < N_MIN) {
+            particle.pos.n = N_MIN;
+            particle.velocity.n = 0.5;
+        }
+
+        if(particle.pos.m > M_MAX) {
+            particle.pos.m = M_MAX;
+            particle.velocity.m = -0.5;
+        }
+
+        if(particle.pos.m < M_MIN) {
+            particle.pos.m = M_MIN;
+            particle.velocity.m = 0.5;
+        }
+
+        if(particle.pos.e > E_MAX) {
+            particle.pos.e = E_MAX;
+            particle.velocity.e = -0.005;
+        }
+
+        if(particle.pos.e < E_MIN) {
+            particle.pos.e = E_MIN;
+            particle.velocity.e = 0.005;
+        }
+
+        if(particle.pos.eb > EB_MAX) {
+            particle.pos.eb = EB_MAX;
+            particle.velocity.eb = -0.005;
+        }
+
+        if(particle.pos.eb < EB_MIN) {
+            particle.pos.eb = EB_MIN;
+            particle.velocity.eb = 0.005;
+        }
 
         fitness(&particle);
         //printf("%d %d", id, iGeneration);
@@ -222,7 +260,7 @@ main (int argc, char** argv)
     }
 
     if (bRoot) {
-        printf("And the winner is: (%d, %d, %.3f, %.3f) -> %.10f\n",  pSwarmBest.pos.n, pSwarmBest.pos.m, pSwarmBest.pos.e, pSwarmBest.pos.eb, pSwarmBest.fitness);
+        printf("And the winner is: (%d, %d, %.10f, %.10f) -> %.10f\n",  pSwarmBest.pos.n, pSwarmBest.pos.m, pSwarmBest.pos.e, pSwarmBest.pos.eb, pSwarmBest.fitness);
     }
  
     MPI_Finalize();
@@ -309,7 +347,7 @@ void bcastParticle(Particle *p, int source)
 //-------------------------------------------------
 void printParticle(struct Particle p, char *c, int id, int g)
 {
-    printf("[%s %02d %03d](%d %d %.3f %.3f) (%.3f %.3f %.3f %.3f) :: %.10f\n", c, id, g, p.pos.n, p.pos.m, p.pos.e, p.pos.eb, p.velocity.n, p.velocity.m, p.velocity.e, p.velocity.eb, p.fitness);
+    printf("[%s %02d %03d](%02d %02d %.10f %.10f) (%.3f %.3f %.3f %.3f) :: %.10f\n", c, id, g, p.pos.n, p.pos.m, p.pos.e, p.pos.eb, p.velocity.n, p.velocity.m, p.velocity.e, p.velocity.eb, p.fitness);
 }
 
 void copyParticle(Particle *s, Particle *d) {
